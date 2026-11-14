@@ -1,0 +1,167 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Regolith: run the outpost</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1f5;--pn:#fff;--ink:#18212e;--mu:#566377;--ln:#cfd6e0;--ac:#0e7a94;--wa:#9a6a00;--ba:#b83a2b;--go:#1f7a46;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#141b26;--pn:#1d2735;--ink:#e6ebf2;--mu:#93a1b5;--ln:#2d3b4f;--ac:#6fd0e8;--wa:#f0b64a;--ba:#ee6b5b;--go:#7cd69a}}
+:root[data-theme=dark]{--bg:#141b26;--pn:#1d2735;--ink:#e6ebf2;--mu:#93a1b5;--ln:#2d3b4f;--ac:#6fd0e8;--wa:#f0b64a;--ba:#ee6b5b;--go:#7cd69a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 "Source Sans 3",system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+h1,h2,button,.k{font-family:"Chakra Petch",system-ui,sans-serif}
+h1{font-size:2.6rem;margin:.2em 0 0;letter-spacing:-.01em}h2{font-size:1.25rem;margin:1.2em 0 .4em}
+.sub,.mu{color:var(--mu)}section{background:var(--pn);border:1px solid var(--ln);border-radius:10px;padding:16px;margin-top:16px}
+[hidden]{display:none!important}
+button,select{font:inherit;font-weight:600;border-radius:8px;border:1px solid var(--ln);background:var(--pn);color:var(--ink);padding:9px 14px;cursor:pointer}
+button.p{background:var(--ac);color:var(--bg);border-color:var(--ac)}button:focus-visible,input:focus-visible,select:focus-visible,canvas:focus-visible{outline:3px solid var(--wa);outline-offset:2px}
+button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:grid;grid-template-columns:150px 1fr 40px;gap:8px;align-items:center;margin:6px 0}.row small{grid-column:1/4;color:var(--mu);margin-top:-6px}
+input[type=range]{width:100%;accent-color:var(--ac)}
+.m{margin:7px 0}.m .t{display:flex;justify-content:space-between;font-size:.95rem}.bar{height:10px;background:var(--ln);border-radius:5px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ac)}
+.bad i{background:var(--ba)}.warn i{background:var(--wa)}
+.act{display:flex;gap:10px;align-items:flex-start;margin:8px 0}.act input{margin-top:6px;width:18px;height:18px}
+#log{min-height:3em;color:var(--mu)}canvas{width:100%;height:auto;border:1px solid var(--ln);border-radius:8px;touch-action:none;background:#222}
+.pad{display:flex;gap:8px;justify-content:center;margin:10px 0}.pad button{min-width:64px;min-height:52px;font-size:1.1rem}
+.good{color:var(--go)}.bd{color:var(--ba)}pre,textarea{width:100%;font:13px/1.4 monospace;background:var(--bg);color:var(--ink);border:1px solid var(--ln);border-radius:6px;padding:8px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+@media(max-width:520px){.row{grid-template-columns:110px 1fr 34px}h1{font-size:2rem}}
+@media(prefers-reduced-motion:no-preference){.bar i{transition:width .4s}}
+</style></head><body><main>
+<h1>Regolith</h1>
+<p class="sub">Run a Moon or Mars outpost for 60 sols. Power, mass, radiation, food and crew time all pull on each other. Pick badly and the post-mortem shows exactly which decision sank you.</p>
+
+<section id="setup"><h2>1. Design the outpost</h2>
+<label>Site <select id="sc"></select></label><p id="scnote" class="mu"></p>
+<p>Launch mass cap: <b>100 units</b>. Remaining: <b id="rem"></b></p><div id="sl"></div><p id="der" class="mu"></p>
+<button class="p" id="go">Launch mission</button></section>
+
+<section id="ops" hidden><h2 id="soltitle"></h2><div id="meters"></div><p id="fc" class="mu"></p>
+<h2>Crew time <span id="hrs" class="mu"></span></h2><div id="acts"></div>
+<button class="p" id="run">Run sol</button><p id="log" aria-live="polite"></p></section>
+
+<section id="eva" hidden><h2>Rover EVA: reach the solar array</h2>
+<p id="evat" class="mu"></p>
+<div class="tools" id="scout"><b>Scout first:</b><button id="trock">Tag rock</button><button id="tcrat">Tag crater</button><button class="p" id="drive">Start driving</button><span id="tagn" class="mu"></span></div>
+<canvas id="cv" width="640" height="360" tabindex="0" aria-label="Terrain map. Arrow keys drive the rover."></canvas>
+<div class="pad" id="pad"><button data-k="left" aria-label="Steer left">◀</button><button data-k="up">Drive</button><button data-k="down">Brake</button><button data-k="right" aria-label="Steer right">▶</button></div>
+<div id="sr" hidden><p><b>Rover tipped.</b> It is leaning <span id="lean"></span>. Which limb sequence rights it?</p><div class="tools"><button data-c="L">Plant left limbs, push</button><button data-c="R">Plant right limbs, push</button><button data-c="B">Extend both, lift</button></div></div></section>
+
+<section id="end" hidden><h2 id="endt"></h2><p id="ends"></p><div id="pm"></div><button class="p" id="again">Plan another mission</button></section>
+
+<section><h2>Training dataset</h2>
+<p>Every decision you make is recorded as structured data. <span id="cnt"></span></p>
+<div class="tools"><button id="dl">Download dataset (JSONL)</button><button id="clr">Clear</button></div><textarea id="ta" rows="5" hidden readonly></textarea>
+<details><summary>Data card</summary><p class="mu">Records (one JSON per line): <code>outpost</code> (allocation, state, crew actions, outcome per sol), <code>eva</code> (rover pose, tilt, battery, throttle, steer at 4 Hz on procedural lunar-style terrain), <code>hazard_tag</code> (player label vs ground truth), <code>selfright</code> (lean side, limb choice, success), <code>eva_end</code>. Anonymous, no personal data. Use: imitation learning for rover navigation, power-aware route cost models, human risk-preference data, and planning benchmarks for resource-allocation agents. Limits: the physics is a simplified model, so it supports high-level policy and perception pre-training, not low-level servo control, until the sim is matched to the real rover’s kinematics and IMU noise. Resource figures are simplified from NASA ISS life-support, Curiosity RAD and lunar dose data.</p></details></section>
+</main>
+<script>
+const $=id=>document.getElementById(id),rnd=Math.random;
+const SC={pole:{n:"Moon: Shackleton rim",rad:1.4,sun:s=>.9,note:"Ridges with near-continuous sunlight. Solar is dependable here."},
+eq:{n:"Moon: equatorial mare",rad:1.4,sun:s=>s%28<14?1:0,note:"Easy landing, but every lunar night lasts 14 Earth days. Plan power for the dark."},
+mars:{n:"Mars: Jezero crater",rad:.7,sun:s=>.43,note:"The atmosphere halves the dose, but sunlight is 43% of Earth’s and dust storms can black out arrays."}};
+const IT=[["solar","Solar arrays","4 kW peak each",1,40],["reactor","Fission units","5 kW constant each, heavy",8,6],["battery","Batteries","120 kWh each",1,40],["shield","Radiation shielding","each 10 units cut dose about 39%",1,40],["ls","Life-support recycling","raises water and O₂ recovery",1,20],["greenhouse","Greenhouse beds","0.5 kg food per sol, 0.8 kW each",1,30],["food","Stored rations","12 kg each",1,60]];
+const DEF={solar:6,reactor:2,battery:10,shield:20,ls:10,greenhouse:12,food:24};
+let A={...DEF},G=null,D=[];try{D=JSON.parse(localStorage.getItem("rg")||"[]")}catch(e){}
+const log=r=>{D.push(r);try{localStorage.setItem("rg",JSON.stringify(D.slice(-6000)))}catch(e){}cnt()};
+const cnt=()=>$("cnt").textContent=D.length+" records collected on this device.";cnt();
+const show=id=>["setup","ops","eva","end"].forEach(s=>$(s).hidden=s!==id);
+const rec=a=>Math.min(.95,.5+.045*a.ls),used=()=>IT.reduce((s,i)=>s+A[i[0]]*i[3],0);
+$("sc").innerHTML=Object.keys(SC).map(k=>`<option value="${k}">${SC[k].n}</option>`).join("");
+function drawSetup(){$("scnote").textContent=SC[$("sc").value].note;
+$("sl").innerHTML=IT.map(i=>`<div class="row"><label for="s_${i[0]}">${i[1]}</label><input type="range" id="s_${i[0]}" min="0" max="${i[4]}" value="${A[i[0]]}"><b id="v_${i[0]}">${A[i[0]]}</b><small>${i[2]}${i[3]>1?" (mass "+i[3]+" each)":""}</small></div>`).join("");
+IT.forEach(i=>$("s_"+i[0]).oninput=e=>{A[i[0]]=+e.target.value;$("v_"+i[0]).textContent=A[i[0]];upd()});upd()}
+function upd(){const r=100-used();$("rem").textContent=r;$("rem").className=r<0?"bd":"";$("go").disabled=r<0;
+$("der").textContent=`Peak solar ${A.solar*4} kW, fission ${A.reactor*5} kW, storage ${A.battery*120} kWh. Recycling ${Math.round(rec(A)*100)}%. Dose multiplier ${Math.exp(-A.shield/20).toFixed(2)}. Rations ${A.food*12} kg, about ${(A.food*12/7.2).toFixed(0)} sols of food.`}
+$("sc").onchange=drawSetup;drawSetup();
+
+$("go").onclick=()=>{const a={...A};G={sc:$("sc").value,a,sol:1,bat:a.battery*120,o2:60,h2o:300,food:a.food*12,dose:0,dust:0,extra:0,sci:0,lsf:0,storm:0,dark:0,starve:0,c:{spe:0,fail:0,tend:0,hib:0,short:null,storm:0,dig:0}};
+if(!D.some(r=>r.t==="meta"))log({t:"meta",v:1,game:"Regolith",units:"kWh, kg, L, mSv, deg, px"});show("ops");drawOps()};
+const cap=()=>G.a.battery*120;
+function bar(l,v,mx,u,cls){const p=Math.max(0,Math.min(100,v/mx*100));return `<div class="m ${cls||""}"><div class="t"><span>${l}</span><span>${Math.round(v)} ${u}</span></div><div class="bar"><i style="width:${p}%"></i></div></div>`}
+const ACTS=[["tend","Tend greenhouse",3,"Untended beds give 40% of their yield"],["maint","Maintain life support",2,"Cuts the chance of a recycler failure"],["clean","Clean solar arrays",2,"Dust steals output every sol"],["dig","Excavate regolith cover",4,"+1.5 shielding, 4 kW extra load"],["eva","Rover EVA to array",3,"Clears dust, earns science. Tests your rover skills"],["hib","Hibernate mode",0,"Greenhouse off to save power"]];
+function drawOps(){const g=G,s=SC[g.sc],sun=s.sun(g.sol)*(g.storm?.1:1);
+$("soltitle").textContent=`Sol ${g.sol} of 60`;
+$("meters").innerHTML=bar("Battery",g.bat,cap()||1,"kWh",g.bat<cap()*.2?"bad":"")+bar("Oxygen",g.o2,60,"kg",g.o2<15?"bad":"")+bar("Water",g.h2o,300,"L",g.h2o<75?"bad":"")+bar("Food",Math.max(0,g.food),Math.max(g.a.food*12,1),"kg",g.food<30?"bad":"")+bar("Crew dose (limit 100)",g.dose,100,"mSv",g.dose>60?"bad":g.dose>35?"warn":"")+bar("Array dust",g.dust*100,50,"%",g.dust>.25?"warn":"")+`<p class="mu">Science points: <b>${g.sci}</b></p>`;
+const nd=g.sc==="eq"?(g.sol%28<14?`Night in ${14-g.sol%28} sols`:`Sunrise in ${28-g.sol%28} sols`):"";
+$("fc").textContent=`Sunlight now ${Math.round(sun*100)}%${g.storm?" (dust storm)":""}. ${nd}`;
+$("acts").innerHTML=ACTS.map(a=>`<label class="act"><input type="checkbox" data-a="${a[0]}" data-h="${a[2]}"><span><b>${a[1]}</b> ${a[2]?a[2]+" h":""}<br><span class="mu">${a[3]}</span></span></label>`).join("");
+document.querySelectorAll("#acts input").forEach(c=>c.onchange=hrs);hrs()}
+function hrs(){let h=0;document.querySelectorAll("#acts input:checked").forEach(c=>h+=+c.dataset.h);$("hrs").textContent=`${h} of 12 hours`;$("run").disabled=h>12}
+$("run").onclick=()=>{const A2={};document.querySelectorAll("#acts input").forEach(c=>A2[c.dataset.a]=c.checked);
+if(A2.eva)startEVA(ok=>{A2.evaOK=ok;sol(A2)});else sol(A2)};
+
+function sol(X){const g=G,a=g.a,s=SC[g.sc],ev=[];let sun=s.sun(g.sol);
+if(g.sc==="mars"&&!g.storm&&rnd()<.08){g.storm=6;g.c.storm++;ev.push("A dust storm is darkening the sky.")}
+if(g.storm){sun*=.1;g.storm--}
+g.dust=Math.min(.5,g.dust+.03+(sun<.2&&g.sc==="mars"?.05:0));if(X.clean||X.evaOK)g.dust=0;
+const eff=1-g.dust,gen=(a.solar*4*sun*eff+a.reactor*5)*24;
+let r=rec(a);if(g.lsf>0){r=Math.max(.2,r-.4);g.lsf--}
+const hib=X.hib,gh=hib?0:a.greenhouse*.8;if(hib)g.c.hib++;
+const need=(6+4*r+gh+(X.dig?4:0))*24;let b=g.bat+gen-need,short=0;if(b<0){short=-b;b=0}g.bat=Math.min(b,cap());
+const pw=short>0?Math.max(0,1-short/need):1;
+if(pw<.95&&g.c.short===null){g.c.short=g.sol;ev.push("Power shortfall: loads were shed.")}
+g.dark=pw<.6?g.dark+1:0;
+const re=r*pw;g.o2-=3.4*(1-re);g.h2o-=12*(1-re);
+if(rnd()<(X.maint?.02:.12)){g.lsf=3;g.c.fail++;ev.push("A recycler fault cut water and O₂ recovery.")}
+if(X.tend)g.c.tend++;const yld=a.greenhouse*.5*(hib?0:1)*(X.tend?1:.4)*pw;g.food+=yld-7.2;g.starve=g.food<0?g.starve+1:0;
+const sh=Math.exp(-(a.shield+g.extra)/20);let dose=s.rad*sh;
+if(X.dig){g.extra=Math.min(12,g.extra+1.5);g.c.dig++}
+if(rnd()<.07){const d=25*sh;dose+=d;g.c.spe++;ev.push(`Solar particle event: +${d.toFixed(1)} mSv.`)}
+g.dose+=dose;if(X.evaOK){g.sci+=5;ev.push("EVA success: arrays cleaned, +5 science.")}else if(X.eva)ev.push("EVA failed: arrays still dusty.");g.sci+=1;
+log({t:"outpost",v:1,sc:g.sc,sol:g.sol,alloc:a,state:{bat:+g.bat.toFixed(0),o2:+g.o2.toFixed(1),h2o:+g.h2o.toFixed(0),food:+g.food.toFixed(0),dose:+g.dose.toFixed(1),dust:+g.dust.toFixed(2),sun:+sun.toFixed(2)},act:X,out:{gen:+gen.toFixed(0),need:+need.toFixed(0),pw:+pw.toFixed(2),rec:+r.toFixed(2),ev:ev.length}});
+let f=null;if(g.dose>=100)f="rad";else if(g.dark>=3)f="power";else if(g.o2<=0||g.h2o<=0)f="ls";else if(g.starve>=3)f="food";
+if(f||g.sol>=60){fin(f);return}
+g.sol++;drawOps();$("log").textContent=ev.join(" ")||"Quiet sol. Systems nominal."}
+function fin(f){const g=G,a=g.a,c=g.c;show("end");const ok=!f;$("endt").textContent=ok?"Mission success: crew safe after 60 sols":`Mission lost on sol ${g.sol}`;$("endt").className=ok?"good":"bd";
+$("ends").textContent=`Science points: ${g.sci}. Crew dose: ${g.dose.toFixed(0)} of 100 mSv.`;
+const L=[];const sh=Math.exp(-(a.shield+g.extra)/20);
+if(f==="rad")L.push(`Radiation: the mission dose limit was crossed. You launched ${a.shield} shielding units and dug ${c.dig} times (+${g.extra} effective), so each sol delivered ${(SC[g.sc].rad*sh).toFixed(2)} mSv, and ${c.spe} solar particle events hit. Ten more shielding units would have cut dose by about 39%, at the cost of 10 mass you spent elsewhere.`);
+if(f==="power")L.push(`Power: loads were shed from sol ${c.short} and the habitat stayed starved for 3 sols. You carried ${a.solar*4} kW of solar, ${a.reactor*5} kW of fission and ${a.battery*120} kWh of storage. ${SC[g.sc].sun(15)<.5?"This site has a 14-day night, so batteries alone can’t bridge it: fission or hibernation must.":g.sc==="mars"?`${c.storm} dust storms cut solar to 10%.`:"Check your night and dust plan."} You hibernated ${c.hib} sols.`);
+if(f==="ls")L.push(`Life support: oxygen or water ran out. Recycling was ${Math.round(rec(a)*100)}%, with ${c.fail} recycler faults. Low recycling burns reserves quickly, but high recycling draws more power.`);
+if(f==="food")L.push(`Food: starvation. You launched ${a.food*12} kg of rations and ${a.greenhouse} beds, tended on ${c.tend} of ${g.sol} sols. Untended beds yield only 40%, and beds in hibernation yield nothing.`);
+if(ok)L.push(`You balanced all five systems. Try the other sites: the same design may fail on a new one.`);
+$("pm").innerHTML=`<h2>Post-mortem</h2><p>${L.join("</p><p>")}</p><p class="mu">This run is now in the dataset as ${g.sol} outpost records.</p>`}
+$("again").onclick=()=>{show("setup")};
+
+/* ---- Rover EVA ---- */
+let E=null;const cv=$("cv"),cx=cv.getContext("2d"),W=640,H=360;
+function R(s){return()=>{s|=0;s=s+1831565813|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function startEVA(cb){show("eva");const seed=Math.floor(rnd()*1e6),q=R(seed),cr=[],rk=[],ph=[q()*6,q()*6,q()*6];
+for(let i=0;i<5;i++)cr.push({x:120+q()*400,y:40+q()*280,r:22+q()*16});
+for(let i=0;i<8;i++)rk.push({x:100+q()*440,y:20+q()*320});
+const h=(x,y)=>{let v=Math.sin(x*.011+ph[0])*18+Math.sin(y*.017+ph[1])*16+Math.sin((x+y)*.007+ph[2])*22;for(const c of cr){const d=Math.hypot(x-c.x,y-c.y)/c.r;v-=30*Math.exp(-d*d*1.5)}return v};
+const bg=document.createElement("canvas");bg.width=W;bg.height=H;const b=bg.getContext("2d");
+for(let y=0;y<H;y+=6)for(let x=0;x<W;x+=6){const c=Math.max(50,Math.min(210,125+(h(x-3,y-3)-h(x+3,y+3))*3.5));b.fillStyle=`rgb(${c},${c},${c+10})`;b.fillRect(x,y,6,6)}
+E={seed,cr,rk,h,bg,cb,ph:"scout",tags:[],tool:"rock",r:{x:25,y:180,a:0,v:0,bat:100,bump:0,cd:0},k:{},t:0,lg:0,n:0,pause:false,ok:0,miss:0,raf:0,last:0};
+$("scout").hidden=false;$("sr").hidden=true;$("pad").hidden=true;$("evat").textContent="Rocks are hard to see in the shadows. Tag rocks and craters before you drive: tagged hazards stay marked. Craters have steep rims. A tip-over costs battery.";tagn();draw();cv.focus()}
+const tagn=()=>$("tagn").textContent=`${E.ok} correct, ${E.miss} missed`;
+$("trock").onclick=()=>E.tool="rock";$("tcrat").onclick=()=>E.tool="crater";
+cv.onpointerdown=e=>{if(!E||E.ph!=="scout")return;const rc=cv.getBoundingClientRect(),x=(e.clientX-rc.left)*W/rc.width,y=(e.clientY-rc.top)*H/rc.height;
+let best=null,bd=22;E.cr.forEach((c,i)=>{const d=Math.hypot(x-c.x,y-c.y)-c.r*.6;if(d<bd){bd=d;best={k:"crater",o:c}}});E.rk.forEach((c,i)=>{const d=Math.hypot(x-c.x,y-c.y);if(d<bd){bd=d;best={k:"rock",o:c}}});
+if(best&&best.o.tag)return;const ok=best&&best.k===E.tool;if(best&&ok)best.o.tag=1;
+E.tags.push({x:+x.toFixed(0),y:+y.toFixed(0)});log({t:"hazard_tag",seed:E.seed,x:+x.toFixed(0),y:+y.toFixed(0),player:E.tool,truth:best?best.k:"none",ok:!!ok});ok?E.ok++:E.miss++;tagn();draw()};
+$("drive").onclick=()=>{E.ph="drive";$("scout").hidden=true;$("pad").hidden=false;E.last=performance.now();cv.focus();E.raf=requestAnimationFrame(loop)};
+const KM={ArrowUp:"up",w:"up",ArrowDown:"down",s:"down",ArrowLeft:"left",a:"left",ArrowRight:"right",d:"right"};
+addEventListener("keydown",e=>{if(E&&E.ph==="drive"&&KM[e.key]){E.k[KM[e.key]]=1;e.preventDefault()}});addEventListener("keyup",e=>{if(E&&KM[e.key])E.k[KM[e.key]]=0});
+document.querySelectorAll("#pad button").forEach(bt=>{const k=bt.dataset.k;bt.onpointerdown=e=>{e.preventDefault();E&&(E.k[k]=1)};["pointerup","pointerleave","pointercancel"].forEach(ev=>bt["on"+ev]=()=>E&&(E.k[k]=0))});
+document.querySelectorAll("#sr button").forEach(bt=>bt.onclick=()=>{const c=bt.dataset.c,ok=c===E.lean;E.r.bat-=ok?5:20;E.r.bump=0;log({t:"selfright",seed:E.seed,lean:E.lean,choice:c,ok});$("sr").hidden=true;E.pause=false;E.last=performance.now();E.raf=requestAnimationFrame(loop)});
+const tiltAt=(x,y)=>{const f=E.h,gx=(f(x+2,y)-f(x-2,y))/4,gy=(f(x,y+2)-f(x,y-2))/4;return Math.atan(Math.hypot(gx,gy))*57.3};
+function loop(now){if(!E||E.ph!=="drive"||E.pause)return;const dt=Math.min(.05,(now-E.last)/1e3);E.last=now;const r=E.r,k=E.k,thr=k.up?1:0,st=(k.right?1:0)-(k.left?1:0);
+if(k.down)r.v=Math.max(0,r.v-140*dt);r.a+=st*1.8*dt*(r.v>5?1:.5);
+const t0=tiltAt(r.x,r.y),mv=48*Math.max(.25,1-t0/55);r.v+=(thr?mv-r.v:-r.v*.8)*Math.min(1,dt*3);
+r.x=Math.max(4,Math.min(W-4,r.x+Math.cos(r.a)*r.v*dt));r.y=Math.max(4,Math.min(H-4,r.y+Math.sin(r.a)*r.v*dt));
+r.cd-=dt;if(r.cd<=0)for(const o of E.rk)if(Math.hypot(r.x-o.x,r.y-o.y)<9){r.bump=36;r.v*=.3;r.cd=1;break}
+r.bump=Math.max(0,r.bump-45*dt);const tilt=t0+r.bump;r.bat-=dt*(thr?3*(1+tilt/8):.6);E.t+=dt;E.lg+=dt;
+if(E.lg>=.25){E.lg=0;if(E.n++<400)log({t:"eva",seed:E.seed,i:E.n,x:+r.x.toFixed(0),y:+r.y.toFixed(0),hd:+r.a.toFixed(2),v:+r.v.toFixed(0),tilt:+tilt.toFixed(0),bat:+r.bat.toFixed(0),thr,str:st})}
+draw(tilt);
+if(tilt>45){E.pause=true;E.lean=rnd()<.5?"L":"R";$("lean").textContent=E.lean==="L"?"left":"right";$("sr").hidden=false;return}
+if(r.x>=594)return endEVA(true);if(r.bat<=0)return endEVA(false);E.raf=requestAnimationFrame(loop)}
+function draw(tilt){const r=E.r;cx.drawImage(E.bg,0,0);
+for(const o of E.rk){cx.globalAlpha=o.tag?1:.3;cx.fillStyle="#ddd";cx.beginPath();cx.arc(o.x,o.y,4,0,7);cx.fill()}
+for(const o of E.cr.concat(E.rk)){if(o.tag){cx.globalAlpha=1;cx.strokeStyle="#f0b64a";cx.lineWidth=2;cx.beginPath();cx.arc(o.x,o.y,o.r?o.r*.8:9,0,7);cx.stroke()}}
+cx.globalAlpha=1;cx.fillStyle="#6fd0e8";cx.fillRect(600,150,30,60);cx.fillStyle="#0b1220";cx.font="12px sans-serif";cx.fillText("array",602,184);
+cx.save();cx.translate(r.x,r.y);cx.rotate(r.a);cx.fillStyle="#f0b64a";cx.beginPath();cx.moveTo(9,0);cx.lineTo(-7,-6);cx.lineTo(-7,6);cx.fill();cx.restore();
+cx.fillStyle="rgba(0,0,0,.6)";cx.fillRect(0,0,W,22);cx.fillStyle="#fff";cx.font="13px sans-serif";cx.fillText(`Battery ${Math.max(0,r.bat).toFixed(0)}%   Tilt ${(tilt||0).toFixed(0)}° (tips over at 45°)`,8,15)}
+function endEVA(ok){cancelAnimationFrame(E.raf);log({t:"eva_end",seed:E.seed,ok,bat:+E.r.bat.toFixed(0),time:+E.t.toFixed(1),tags_ok:E.ok,tags_miss:E.miss});const cb=E.cb;show("ops");cb(ok)}
+$("dl").onclick=async()=>{const s=D.map(r=>JSON.stringify(r)).join("\n");let u=null;try{u=window.claude&&await claude.use("downloads")}catch(e){}
+if(u){try{await u.save({filename:"regolith_dataset.jsonl",data:s});return}catch(e){}}$("ta").hidden=false;$("ta").value=s;$("ta").select()};
+$("clr").onclick=()=>{D=[];try{localStorage.removeItem("rg")}catch(e){}cnt()};
+</script></body></html>
